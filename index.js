@@ -9,7 +9,22 @@ import { fileURLToPath } from 'url';
 dotenv.config();
 
 const app = express();
-app.use(cors());
+const allowedOrigins = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (!allowedOrigins.length || allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  },
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 const apiKey = process.env.GEMINI_API_KEY;
@@ -19,20 +34,6 @@ const modelName = 'gemini-2.0-flash-exp';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Fallback dataset loader (cached)
-let FALLBACK_DATA = null;
-function getFallbackData() {
-  if (FALLBACK_DATA) return FALLBACK_DATA;
-  try {
-    const filePath = path.resolve(__dirname, '../Frontend/assets/data/indianFoods.json');
-    const raw = fs.readFileSync(filePath, 'utf-8');
-    FALLBACK_DATA = JSON.parse(raw);
-  } catch (e) {
-    console.error('Failed to load fallback dataset:', e);
-    FALLBACK_DATA = [];
-  }
-  return FALLBACK_DATA;
-}
 
 // Helpers to handle AI responses that include code fences or extra text
 function stripCodeFences(text) {
@@ -319,6 +320,18 @@ ${summary}`;
 });
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`CalorieCurve server listening on http://localhost:${PORT}`);
+const HOST = '0.0.0.0';
+
+// Basic root route for readiness and quick check
+app.get('/', (req, res) => {
+  res.status(200).send('CalorieCurve API OK');
+});
+
+// Health check route for deployment platforms
+app.get('/healthz', (req, res) => {
+  res.status(200).send('ok');
+});
+
+app.listen(PORT, HOST, () => {
+  console.log(`CalorieCurve server listening on http://${HOST}:${PORT}`);
 });
